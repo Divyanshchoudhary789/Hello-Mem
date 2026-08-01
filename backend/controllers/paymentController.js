@@ -61,6 +61,14 @@ const createRazorpayOrder = async (req, res) => {
       });
     }
 
+    // COD orders should never go through Razorpay
+    if (order.paymentMethod === "COD") {
+      return res.status(400).json({
+        success: false,
+        message: "This is a Cash on Delivery order. Use the COD payment flow instead.",
+      });
+    }
+
     // Order was auto-cancelled (timeout) or manually cancelled — cannot pay for it
     if (order.orderStatus === "CANCELLED") {
       return res.status(400).json({
@@ -153,6 +161,14 @@ const verifyRazorpayPayment = async (req, res) => {
     }
     if (order.customer.customerId.toString() !== req.user.id.toString()) {
       return res.status(403).json({ success: false, message: "Not authorized for this order" });
+    }
+
+    // Razorpay verification should only run for online payment orders
+    if (order.paymentMethod === "COD") {
+      return res.status(400).json({
+        success: false,
+        message: "This is a Cash on Delivery order. Razorpay payment verification is not applicable.",
+      });
     }
 
     const isValid = verifyPaymentSignature({

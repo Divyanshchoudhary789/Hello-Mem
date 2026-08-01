@@ -1726,8 +1726,24 @@ const updateOrderStatusAdmin = async (req, res) => {
           { status: "cod_refund_pending", codRefundReason: "Admin initiated return" }
         );
       }
+    } else {
+      // Non-COD (online payment) order cancelled — restore stock
+      if (orderStatus === "CANCELLED" && ["PENDING", "CONFIRMED"].includes(order.orderStatus)) {
+        for (const item of order.items) {
+          await Product.findByIdAndUpdate(item.product, {
+            $inc: { stock: item.quantity },
+          });
+        }
+      }
+      // Non-COD return approved/returned — restore stock
+      if (
+        (orderStatus === "RETURN_APPROVED" || orderStatus === "RETURNED") &&
+        order.paymentStatus === "paid"
+      ) {
+        updateFields.paymentStatus = "refunded";
+      }
     }
-    // ── End COD handling ──────────────────────────────────────────────────
+    // ── End COD/non-COD handling ──────────────────────────────────────────
 
     const updatedOrder = await Order.findByIdAndUpdate(
       id,

@@ -29,6 +29,15 @@ const createOrder = async (req, res) => {
       notes = "",
     } = req.body;
 
+    // Validate paymentMethod
+    const validPaymentMethods = ["COD", "razorpay", "card", "upi", "netbanking", "wallet"];
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid payment method. Allowed: ${validPaymentMethods.join(", ")}`,
+      });
+    }
+
     if (!["cart", "buyNow"].includes(checkoutType)) {
       return res.status(400).json({
         success: false,
@@ -490,7 +499,9 @@ const getSellerOrders = async (req, res) => {
         orderNumber: order.orderNumber,
         customer: order.customer,
         orderStatus: order.orderStatus,
-        payment: order.pricing.total,
+        paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
+        totalAmount: order.pricing.total,
         shipping: order.shipping,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
@@ -566,7 +577,9 @@ const getSellerOrderById = async (req, res) => {
 
         billingAddress: order.billingAddress,
 
-        payment: order.pricing.total,
+        paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
+        totalAmount: order.pricing.total,
 
         shipping: order.shipping,
 

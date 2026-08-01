@@ -58,11 +58,14 @@ router.get(
   getCODPendingRefunds
 );
 
+// ── Admin: Razorpay Refund ───────────────────────────────────────────────────
+// IMPORTANT: This static POST /refund route must be declared BEFORE the dynamic
+// GET /:id route. Express matches routes in order — if /:id comes first,
+// a POST to /refund would incorrectly match /:id with id="refund".
+router.post("/refund", authMiddleware, roleMiddleware("admin"), initiateRefund);
+
 // ── Payment Details ──────────────────────────────────────────────────────────
 // NOTE: dynamic :id routes must come AFTER all static paths above
 router.get("/:id", authMiddleware, roleMiddleware("customer", "admin"), getPaymentDetails);
-
-// ── Admin: Razorpay Refund ───────────────────────────────────────────────────
-router.post("/refund", authMiddleware, roleMiddleware("admin"), initiateRefund);
 
 module.exports = router;
