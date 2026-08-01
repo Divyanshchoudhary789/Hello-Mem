@@ -158,6 +158,25 @@ productSchema.index({ seller: 1 });
 productSchema.index({ category: 1 });
 productSchema.index({ isActive: 1 });
 productSchema.index({ isFeatured: 1 });
-productSchema.index({ name: "text", brand: "text" }); // full-text search
+// Compound text index with weights — higher weight = more relevant in $text search
+productSchema.index(
+  {
+    name:              "text",
+    brand:             "text",
+    shortDescription:  "text",
+    tags:              "text",
+    "seo.keywords":    "text",
+  },
+  {
+    weights: {
+      name:             10,   // exact name match is most relevant
+      brand:             6,
+      tags:              4,
+      shortDescription:  2,
+      "seo.keywords":    3,
+    },
+    name: "product_text_search", // named index — easy to manage/drop
+  }
+);
 
 module.exports = mongoose.model("Product", productSchema);

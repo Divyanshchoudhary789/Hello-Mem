@@ -176,21 +176,23 @@ const getAdminDashboardStats = async (req, res) => {
       Order.aggregate([
         { $group: { _id: "$orderStatus", count: { $sum: 1 } } },
       ]),
-      // Revenue
+      // Revenue — include both online-paid and COD confirmed orders
+      // "paid"       = online payment verified OR COD cash collected
+      // "cod_pending" = COD order confirmed, cash to be collected at delivery (committed revenue)
       Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] } } },
         { $group: { _id: null, total: { $sum: "$pricing.total" }, count: { $sum: 1 } } },
       ]),
       Order.aggregate([
-        { $match: { paymentStatus: "paid", createdAt: { $gte: startOfMonth } } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] }, createdAt: { $gte: startOfMonth } } },
         { $group: { _id: null, total: { $sum: "$pricing.total" }, count: { $sum: 1 } } },
       ]),
       Order.aggregate([
-        { $match: { paymentStatus: "paid", createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth } } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] }, createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth } } },
         { $group: { _id: null, total: { $sum: "$pricing.total" }, count: { $sum: 1 } } },
       ]),
       Order.aggregate([
-        { $match: { paymentStatus: "paid", createdAt: { $gte: startOfToday } } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] }, createdAt: { $gte: startOfToday } } },
         { $group: { _id: null, total: { $sum: "$pricing.total" }, count: { $sum: 1 } } },
       ]),
       // Reviews
@@ -203,7 +205,7 @@ const getAdminDashboardStats = async (req, res) => {
         .lean(),
       // Top 5 selling products by order item quantity
       Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] } } },
         { $unwind: "$items" },
         {
           $group: {
@@ -217,9 +219,9 @@ const getAdminDashboardStats = async (req, res) => {
         { $sort: { totalQuantitySold: -1 } },
         { $limit: 5 },
       ]),
-      // Revenue per day for last 7 days
+      // Revenue per day for last 7 days (paid + COD confirmed)
       Order.aggregate([
-        { $match: { paymentStatus: "paid", createdAt: { $gte: startOf7DaysAgo } } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] }, createdAt: { $gte: startOf7DaysAgo } } },
         {
           $group: {
             _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -229,9 +231,9 @@ const getAdminDashboardStats = async (req, res) => {
         },
         { $sort: { _id: 1 } },
       ]),
-      // Payment method breakdown
+      // Payment method breakdown — include cod_collected + cod_pending for COD representation
       Payment.aggregate([
-        { $match: { status: "success" } },
+        { $match: { status: { $in: ["success", "cod_collected", "cod_pending"] } } },
         { $group: { _id: "$paymentMethod", count: { $sum: 1 }, total: { $sum: "$amount" } } },
         { $sort: { total: -1 } },
       ]),
@@ -260,7 +262,7 @@ const getAdminDashboardStats = async (req, res) => {
 
       // Revenue + order count per month for last 6 months (Line/Bar chart)
       Order.aggregate([
-        { $match: { paymentStatus: "paid", createdAt: { $gte: startOf6MonthsAgo } } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] }, createdAt: { $gte: startOf6MonthsAgo } } },
         {
           $group: {
             _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
@@ -312,7 +314,7 @@ const getAdminDashboardStats = async (req, res) => {
 
       // Revenue breakdown by category (Pie/Donut chart)
       Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] } } },
         { $unwind: "$items" },
         {
           $lookup: {
@@ -357,7 +359,7 @@ const getAdminDashboardStats = async (req, res) => {
 
       // Top 10 sellers by revenue (Horizontal Bar chart)
       Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] } } },
         { $unwind: "$items" },
         {
           $group: {
@@ -729,7 +731,7 @@ const getRevenueAnalytics = async (req, res) => {
         };
 
     const data = await Order.aggregate([
-      { $match: { paymentStatus: "paid", createdAt: { $gte: startDate } } },
+      { $match: { paymentStatus: { $in: ["paid", "cod_pending"] }, createdAt: { $gte: startDate } } },
       {
         $group: {
           _id: groupStage,
@@ -952,7 +954,7 @@ const getProductAnalytics = async (req, res) => {
     const [topProducts, categoryBreakdown, stockSummary] = await Promise.all([
       // Top products
       Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] } } },
         { $unwind: "$items" },
         {
           $group: {
@@ -995,7 +997,7 @@ const getProductAnalytics = async (req, res) => {
       ]),
       // Category revenue breakdown
       Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] } } },
         { $unwind: "$items" },
         {
           $lookup: {
@@ -1081,7 +1083,7 @@ const getSellerAnalytics = async (req, res) => {
     const [topSellers, verificationBreakdown, sellerGrowthTrend] = await Promise.all([
       // Top sellers by revenue with enriched data
       Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] } } },
         { $unwind: "$items" },
         {
           $group: {
@@ -1307,7 +1309,7 @@ const getAllSellers = async (req, res) => {
         { $group: { _id: "$seller", productCount: { $sum: 1 }, activeProducts: { $sum: { $cond: ["$isActive", 1, 0] } } } },
       ]),
       Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
+        { $match: { paymentStatus: { $in: ["paid", "cod_pending"] } } },
         { $unwind: "$items" },
         { $match: { "items.seller": { $in: sellerIds } } },
         { $group: { _id: "$items.seller", totalRevenue: { $sum: "$items.subtotal" }, orderCount: { $sum: 1 } } },
@@ -1657,6 +1659,12 @@ const getOrderDetailAdmin = async (req, res) => {
 /**
  * PATCH /api/admin/orders/:id/status
  * Body: { orderStatus }
+ *
+ * COD special handling:
+ *   - DELIVERED  : paymentStatus stays "cod_pending" (cash not yet collected).
+ *                  Admin must separately call PATCH /api/payments/cod/collect to confirm cash.
+ *   - CANCELLED (COD, cod_pending): paymentStatus → "pending" (no cash taken, no refund needed).
+ *   - RETURN_APPROVED / RETURNED (COD, paid): paymentStatus → "cod_refund_pending" (cash was taken, refund required).
  */
 const updateOrderStatusAdmin = async (req, res) => {
   try {
@@ -1674,32 +1682,71 @@ const updateOrderStatusAdmin = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid order status." });
     }
 
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found." });
+    }
+
     const updateFields = { orderStatus };
 
     // Set shipping timestamps when admin advances status
     if (orderStatus === "SHIPPED") updateFields["shipping.shippedAt"] = new Date();
     if (orderStatus === "DELIVERED") updateFields["shipping.deliveredAt"] = new Date();
 
-    const order = await Order.findByIdAndUpdate(
+    // ── COD-specific paymentStatus transitions ─────────────────────────────
+    const isCOD = order.paymentMethod === "COD";
+
+    if (isCOD) {
+      if (orderStatus === "CANCELLED" && order.paymentStatus === "cod_pending") {
+        // Cancelled before delivery — no cash was collected, so no refund needed.
+        // Reset paymentStatus to plain "pending" to keep things clean.
+        updateFields.paymentStatus = "pending";
+
+        // Update the linked Payment record to cancelled
+        await Payment.findOneAndUpdate(
+          { order: order._id, paymentMethod: "cod" },
+          { status: "cancelled" }
+        );
+
+        // Restore stock since order is being cancelled
+        for (const item of order.items) {
+          await Product.findByIdAndUpdate(item.product, {
+            $inc: { stock: item.quantity },
+          });
+        }
+      } else if (
+        (orderStatus === "RETURN_APPROVED" || orderStatus === "RETURNED") &&
+        order.paymentStatus === "paid"
+      ) {
+        // Cash was already collected — flag for manual refund processing.
+        updateFields.paymentStatus = "cod_refund_pending";
+
+        await Payment.findOneAndUpdate(
+          { order: order._id, paymentMethod: "cod" },
+          { status: "cod_refund_pending", codRefundReason: "Admin initiated return" }
+        );
+      }
+    }
+    // ── End COD handling ──────────────────────────────────────────────────
+
+    const updatedOrder = await Order.findByIdAndUpdate(
       id,
       { $set: updateFields },
       { new: true, runValidators: true }
     );
 
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found." });
-    }
-
-    // Auto-create vendor payment records when admin marks an order as DELIVERED
+    // Auto-create vendor payment records when admin marks an order as DELIVERED.
+    // Works for both online-paid and COD orders (vendorPayments are created now;
+    // the admin confirms COD cash collection separately via /api/payments/cod/collect).
     if (orderStatus === "DELIVERED") {
       try {
-        await createVendorPaymentsForOrder(order._id);
+        await createVendorPaymentsForOrder(updatedOrder._id);
       } catch (vpErr) {
-        console.error(`[VendorPayment] Auto-creation failed for order ${order.orderNumber}:`, vpErr.message);
+        console.error(`[VendorPayment] Auto-creation failed for order ${updatedOrder.orderNumber}:`, vpErr.message);
       }
     }
 
-    res.status(200).json({ success: true, message: "Order status updated.", order });
+    res.status(200).json({ success: true, message: "Order status updated.", order: updatedOrder });
   } catch (error) {
     console.error("Update Order Status Admin Error:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -1922,7 +1969,7 @@ const getSellerDetailsAdmin = async (req, res) => {
             totalRevenue: {
               $sum: {
                 $cond: [
-                  { $eq: ["$paymentStatus", "paid"] },
+                  { $in: ["$paymentStatus", ["paid", "cod_pending"]] },
                   "$items.subtotal",
                   0,
                 ],

@@ -24,10 +24,15 @@ const runCleanup = async () => {
   try {
     const cutoff = new Date(Date.now() - PAYMENT_TIMEOUT_MINUTES * 60 * 1000);
 
-    // Find all abandoned orders in one query
+    // Find all abandoned orders in one query.
+    // IMPORTANT: Only target orders where paymentMethod is NOT COD.
+    // COD orders have orderStatus "CONFIRMED" and paymentStatus "cod_pending" —
+    // they are never in "PENDING" state, so this filter is a safety net.
+    // We explicitly exclude COD to avoid accidental cancellation.
     const abandonedOrders = await Order.find({
       orderStatus: "PENDING",
       paymentStatus: "pending",
+      paymentMethod: { $ne: "COD" },
       createdAt: { $lt: cutoff },
     });
 

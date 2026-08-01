@@ -21,13 +21,27 @@ const bankRoutes = require("./routes/bankRoutes");
 const userBankRoutes = require("./routes/userBankRoutes");
 const vendorPaymentRoutes = require("./routes/vendorPaymentRoutes");
 const vendorCommissionRoutes = require("./routes/vendorCommissionRoutes");
+const searchRoutes           = require("./routes/searchRoutes");
 
 const app = express();
 connectDB();
 
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  "http://localhost:5173",
+  "https://hellomem.com",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173" || "https://hellomem.com",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
     credentials: true,
   })
 );
@@ -60,6 +74,7 @@ app.use("/api/banks", bankRoutes);
 app.use("/api/user-banks", userBankRoutes);
 app.use("/api/vendor-payments", vendorPaymentRoutes);
 app.use("/api/vendor-commissions", vendorCommissionRoutes);
+app.use("/api/search",           searchRoutes);
 
 // ── Global Error Handler ──────────────────────────────────────────────────────
 app.use((err, req, res, next) => {

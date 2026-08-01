@@ -141,6 +141,14 @@ const registerSeller = async (req, res) => {
       });
     }
 
+    // Landmark is mandatory inside address
+    if (!address || !address.landmark) {
+      return res.status(400).json({
+        success: false,
+        message: "Address with landmark is required.",
+      });
+    }
+
     const mobileNumber = phone.trim();
     const normalizedEmail = email.trim().toLowerCase();
 

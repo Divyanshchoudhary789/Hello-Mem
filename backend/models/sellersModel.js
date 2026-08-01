@@ -59,6 +59,7 @@ const sellerSchema = new mongoose.Schema(
       state: { type: String, default: "" },
       country: { type: String, default: "India" },
       pincode: { type: String, default: "" },
+      landmark: { type: String, required: true, trim: true },
     },
 
     bankDetails: {

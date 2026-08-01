@@ -92,6 +92,12 @@ const addressSchema = new mongoose.Schema(
 
     addressLine2: String,
 
+    landmark: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     city: String,
 
     state: String,
@@ -204,10 +210,12 @@ const orderSchema = new mongoose.Schema(
     paymentStatus: {
       type: String,
       enum: [
-        "pending",
-        "paid",
-        "failed",
-        "refunded",
+        "pending",            // initial — online payment not yet received
+        "paid",               // online payment verified OR COD cash collected
+        "failed",             // online payment failed
+        "refunded",           // online refund processed via Razorpay
+        "cod_pending",        // COD order confirmed — cash to be collected on delivery
+        "cod_refund_pending", // COD order returned — manual cash refund to be processed
       ],
       default: "pending",
     },

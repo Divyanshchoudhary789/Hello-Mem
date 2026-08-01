@@ -60,13 +60,28 @@ const paymentSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        "pending",
-        "success",
-        "failed",
-        "refunded",
-        "cancelled",
+        "pending",          // initial state — awaiting payment
+        "success",          // online payment verified
+        "failed",           // online payment failed
+        "refunded",         // online refund processed via Razorpay
+        "cancelled",        // order cancelled before any payment
+        // COD-specific statuses
+        "cod_pending",      // COD order confirmed — awaiting cash collection at delivery
+        "cod_collected",    // delivery agent collected cash — payment complete
+        "cod_refund_pending", // COD order cancelled/returned — cash refund to be issued manually
       ],
       default: "pending",
+    },
+
+    // Reason for COD refund (filled when status → cod_refund_pending)
+    codRefundReason: {
+      type: String,
+      trim: true,
+    },
+
+    // Date when COD cash was physically collected
+    codCollectedAt: {
+      type: Date,
     },
 
     paidAt: Date,

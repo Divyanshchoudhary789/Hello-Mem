@@ -3,6 +3,7 @@ const Order = require("../models/order");
 const Cart = require("../models/cart");
 const Product = require("../models/productModel");
 const Customer = require("../models/customers");
+const Payment = require("../models/Payment");
 const mongoose = require("mongoose");
 const { createVendorPaymentsForOrder } = require("./vendorPaymentController");
 
@@ -40,13 +41,14 @@ const createOrder = async (req, res) => {
       !shippingAddress.fullName ||
       !shippingAddress.phone ||
       !shippingAddress.addressLine1 ||
+      !shippingAddress.landmark ||
       !shippingAddress.city ||
       !shippingAddress.state ||
       !shippingAddress.postalCode
     ) {
       return res.status(400).json({
         success: false,
-        message: "Complete shipping address is required",
+        message: "Complete shipping address is required (landmark is mandatory)",
       });
     }
 
@@ -240,9 +242,27 @@ const order = await Order.create(orderData);
     // will cancel and restore stock if payment is not received within 30 minutes.
     // COD orders are confirmed immediately — no online payment required.
     if (paymentMethod === "COD") {
-      // COD — mark as confirmed right away, no online payment required
-      order.paymentStatus = "paid";
+      // COD — mark as confirmed right away, no online payment required.
+      // paymentStatus = "cod_pending" means: order confirmed, cash will be collected at delivery.
+      order.paymentStatus = "cod_pending";
       order.orderStatus = "CONFIRMED";
+
+      // Create a Payment record for COD so that analytics and audit trail are consistent.
+      // This mirrors the Razorpay flow — every order always has a linked Payment document.
+      const codPayment = await Payment.create({
+        order: order._id,
+        customer: customerId,
+        amount: total,
+        currency: "INR",
+        receipt: order._id.toString(),
+        paymentMethod: "cod",
+        transactionId: `COD-${order.orderNumber}`,
+        status: "cod_pending",
+      });
+
+      order.payment = codPayment._id;
+      await order.save();
+    } else {
       await order.save();
     }
 
@@ -401,6 +421,17 @@ const cancelOrder = async (req, res) => {
       order.orderStatus = "CANCELLED";
       order.cancelReason = cancelReason;
 
+      // ── COD cancellation: update linked Payment record ─────────────────────
+      // If COD order was cancelled before delivery (cash never collected),
+      // mark the payment as cancelled — no refund needed.
+      if (order.paymentMethod === "COD" && order.paymentStatus === "cod_pending") {
+        order.paymentStatus = "pending"; // no cash taken, clean state
+        await Payment.findOneAndUpdate(
+          { order: order._id, paymentMethod: "cod" },
+          { status: "cancelled" }
+        );
+      }
+
       await order.save();
 
       return res.status(200).json({
@@ -427,9 +458,10 @@ const getSellerOrders = async (req, res) => {
 
     // Sellers should only see orders where payment is confirmed.
     // Pending/abandoned orders are not actionable for the seller.
+    // COD orders have paymentStatus "cod_pending" — they are confirmed & actionable.
     const filter = {
       "items.seller": sellerId,
-      paymentStatus: "paid",
+      paymentStatus: { $in: ["paid", "cod_pending", "cod_refund_pending"] },
     };
 
     if (status) {
@@ -496,11 +528,12 @@ const getSellerOrderById = async (req, res) => {
       });
     }
 
-    // Find order containing this seller's products — only if payment is done
+    // Find order containing this seller's products — only if payment is confirmed
+    // (paid = online payment done; cod_pending = COD confirmed, cash to be collected)
     const order = await Order.findOne({
       _id: id,
       "items.seller": sellerId,
-      paymentStatus: "paid",
+      paymentStatus: { $in: ["paid", "cod_pending", "cod_refund_pending"] },
     });
 
     if (!order) {
@@ -603,7 +636,8 @@ const updateOrderStatus = async (req, res) => {
     }
 
     // Block status updates on unpaid orders — seller should never touch these
-    if (order.paymentStatus !== "paid") {
+    // COD orders with "cod_pending" are confirmed and actionable
+    if (order.paymentStatus !== "paid" && order.paymentStatus !== "cod_pending" && order.paymentStatus !== "cod_refund_pending") {
       return res.status(400).json({
         success: false,
         message: "Cannot update status: payment has not been received for this order",
@@ -695,7 +729,7 @@ const updateTracking = async (req, res) => {
       });
     }
 
-    if (order.paymentStatus !== "paid") {
+    if (order.paymentStatus !== "paid" && order.paymentStatus !== "cod_pending") {
       return res.status(400).json({
         success: false,
         message: "Cannot update tracking: payment has not been received for this order",
