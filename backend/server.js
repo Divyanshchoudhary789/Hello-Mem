@@ -35,8 +35,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, Postman)
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || origin.startsWith("chrome-extension://")) {
         callback(null, true);
       } else {
         callback(new Error(`CORS: origin ${origin} not allowed`));
