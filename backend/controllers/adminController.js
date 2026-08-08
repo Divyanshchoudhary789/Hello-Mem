@@ -19,8 +19,8 @@ const {
 const { createVendorPaymentsForOrder } = require("./vendorPaymentController");
 
 // ── Admin credentials from environment ────────────────────────────────────────
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@hellomaam.com").toLowerCase();
-const ADMIN_PHONE = process.env.ADMIN_PHONE || "9876543210";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@hellomem.com").toLowerCase();
+const ADMIN_PHONE = process.env.ADMIN_PHONE || "9680712804";
 
 // Escape user input before using in $regex to prevent ReDoS
 const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
